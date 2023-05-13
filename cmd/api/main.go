@@ -17,8 +17,8 @@ type config struct {
 }
 
 type application struct {
-	log *log.Logger
-	cfg config
+	logger *log.Logger
+	cfg    config
 }
 
 func main() {
@@ -30,8 +30,8 @@ func main() {
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 
 	app := &application{
-		log: logger,
-		cfg: cfg,
+		logger: logger,
+		cfg:    cfg,
 	}
 
 	srv := &http.Server{
