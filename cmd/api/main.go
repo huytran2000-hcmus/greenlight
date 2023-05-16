@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"huytran2000-hcmus/greenlight/internal/data"
 	"log"
 	"net/http"
 	"os"
@@ -27,7 +28,7 @@ type config struct {
 type application struct {
 	logger *log.Logger
 	cfg    config
-	db     *sql.DB
+	models data.Models
 }
 
 func main() {
@@ -47,10 +48,12 @@ func main() {
 		panic(err)
 	}
 
+	models := data.NewModels(db)
+
 	app := &application{
 		logger: logger,
 		cfg:    cfg,
-		db:     db,
+		models: models,
 	}
 
 	srv := &http.Server{
