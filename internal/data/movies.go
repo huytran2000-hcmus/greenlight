@@ -2,6 +2,8 @@ package data
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"huytran2000-hcmus/greenlight/internal/validator"
 	"time"
 
@@ -52,7 +54,27 @@ func (m *MovieModel) Insert(movie *Movie) error {
 }
 
 func (m *MovieModel) Get(id int64) (*Movie, error) {
-	return nil, nil
+	if id <= 0 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+    SELECT id, title, year, runtime, genres, created_at, version
+    FROM movies
+    WHERE id = $1
+    `
+
+	var movie Movie
+	err := m.DB.QueryRow(query, id).Scan(&movie.ID, &movie.Title, &movie.Year, &movie.Runtime, pq.Array(&movie.Genres), &movie.CreatedAt, &movie.Version)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+
+		return nil, fmt.Errorf("models: query a movie: %s", err)
+	}
+
+	return &movie, nil
 }
 
 func (m *MovieModel) Update(movie *Movie) error {

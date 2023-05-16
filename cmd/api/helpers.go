@@ -71,7 +71,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		case errors.Is(err, io.EOF):
 			return errors.New("request body is empty")
 		case errors.As(err, &maxBytesErr):
-			return fmt.Errorf("body must not be larger than %d bytes", maxBytesErr.Limit)
+			return fmt.Errorf("request body must not be larger than %d bytes", maxBytesErr.Limit)
 		case errors.As(err, &invalidErr):
 			panic(err)
 		default:

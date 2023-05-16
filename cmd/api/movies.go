@@ -1,11 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"huytran2000-hcmus/greenlight/internal/data"
 	"huytran2000-hcmus/greenlight/internal/validator"
 	"net/http"
-	"time"
 )
 
 func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
@@ -58,13 +58,15 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	movie := data.Movie{
-		ID:        id,
-		Title:     "Casablanca",
-		Runtime:   102,
-		Genres:    []string{"drama", "war", "romance"},
-		Version:   1,
-		CreatedAt: time.Time{},
+	movie, err := app.models.Movie.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, fmt.Errorf("show movie handler: %s", err))
+		}
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, nil, envelope{"movie": movie})
