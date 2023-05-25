@@ -38,7 +38,7 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.models.Movie.Insert(movie)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		app.serverErrorResponse(w, r, fmt.Errorf("create movie handler: %s", err))
 		return
 	}
 
@@ -47,7 +47,7 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.writeJSON(w, http.StatusCreated, header, envelope{"movie": movie})
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		app.serverErrorResponse(w, r, fmt.Errorf("create movie handler: %s", err))
 	}
 }
 
@@ -71,7 +71,7 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 
 	err = app.writeJSON(w, http.StatusOK, nil, envelope{"movie": movie})
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		app.serverErrorResponse(w, r, fmt.Errorf("show movie handler: %s", err))
 		return
 	}
 }
@@ -89,7 +89,7 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
 		default:
-			app.serverErrorResponse(w, r, err)
+			app.serverErrorResponse(w, r, fmt.Errorf("update movie handler: %s", err))
 		}
 		return
 	}
@@ -141,7 +141,7 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.writeJSON(w, http.StatusOK, nil, envelope{"movie": movie})
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		app.serverErrorResponse(w, r, fmt.Errorf("update movie handler: %s", err))
 	}
 }
 
@@ -158,13 +158,13 @@ func (app *application) deleteMovieHanlder(w http.ResponseWriter, r *http.Reques
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
 		default:
-			app.serverErrorResponse(w, r, err)
+			app.serverErrorResponse(w, r, fmt.Errorf("delete movie handler: %s", err))
 		}
 		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, nil, envelope{"message": "movie succesfully deleted"})
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		app.serverErrorResponse(w, r, fmt.Errorf("delete movie handler: %s", err))
 	}
 }

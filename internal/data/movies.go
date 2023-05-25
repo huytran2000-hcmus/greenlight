@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/lib/pq"
 )
+
+var standardTimeout = 3 * time.Second
 
 type Movie struct {
 	ID        int64     `json:"id"`
@@ -49,8 +52,9 @@ func (m *MovieModel) Insert(movie *Movie) error {
     `
 
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
-
-	err := m.DB.QueryRow(query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
+	defer cancel()
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 	if err != nil {
 		return fmt.Errorf("data: insert a movie: %s", err)
 	}
@@ -68,9 +72,17 @@ func (m *MovieModel) Get(id int64) (*Movie, error) {
     FROM movies
     WHERE id = $1
     `
-
 	var movie Movie
-	err := m.DB.QueryRow(query, id).Scan(&movie.ID, &movie.Title, &movie.Year, &movie.Runtime, pq.Array(&movie.Genres), &movie.CreatedAt, &movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
+	defer cancel()
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&movie.ID,
+		&movie.Title,
+		&movie.Year,
+		&movie.Runtime,
+		pq.Array(&movie.Genres),
+		&movie.CreatedAt,
+		&movie.Version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrRecordNotFound
@@ -90,8 +102,9 @@ func (m *MovieModel) Update(movie *Movie) error {
     returning version
     `
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.ID, movie.Version}
-
-	err := m.DB.QueryRow(query, args...).Scan(&movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
+	defer cancel()
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrEditConflict
@@ -109,7 +122,9 @@ func (m *MovieModel) Delete(id int64) error {
     WHERE id = $1
     `
 
-	result, err := m.DB.Exec(stmt, id)
+	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
+	defer cancel()
+	result, err := m.DB.ExecContext(ctx, stmt, id)
 	if err != nil {
 		return fmt.Errorf("data: delete a movie: %s", err)
 	}
