@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"huytran2000-hcmus/greenlight/internal/data"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
 	_ "github.com/lib/pq"
+
+	"huytran2000-hcmus/greenlight/internal/data"
 )
 
 const version = "1.0.0"
@@ -40,7 +41,12 @@ func main() {
 	flag.StringVar(&cfg.dsn, "dsn", os.Getenv("GREENLIGHT_DB_DSN"), "PostgreSQL data source name")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
-	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
+	flag.StringVar(
+		&cfg.db.maxIdleTime,
+		"db-max-idle-time",
+		"15m",
+		"PostgreSQL max connection idle time",
+	)
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "", log.LstdFlags)

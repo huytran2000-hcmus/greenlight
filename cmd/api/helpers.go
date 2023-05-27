@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"huytran2000-hcmus/greenlight/internal/validator"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -24,6 +26,42 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 	}
 
 	return id, nil
+}
+
+func (app *application) readString(qs url.Values, key, defaultVal string) string {
+	val := qs.Get(key)
+
+	if val == "" {
+		return defaultVal
+	}
+
+	return val
+}
+
+func (app *application) readCSV(qs url.Values, key string, defaultVals []string) []string {
+	vals := qs.Get(key)
+
+	if vals == "" {
+		return defaultVals
+	}
+
+	return strings.Split(vals, ",")
+}
+
+func (app *application) readInt(qs url.Values, key string, defaultVal int, v *validator.Validator) int {
+	val := qs.Get(key)
+
+	if val == "" {
+		return defaultVal
+	}
+
+	i, err := strconv.Atoi(val)
+	if err != nil {
+		v.AddFieldError(key, "must be an integer value")
+		return defaultVal
+	}
+
+	return i
 }
 
 func (app *application) writeJSON(w http.ResponseWriter, status int, header http.Header, data envelope) error {

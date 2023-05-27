@@ -140,3 +140,38 @@ func (m *MovieModel) Delete(id int64) error {
 
 	return nil
 }
+
+func (m *MovieModel) GetAll(title string, genres []string) ([]Movie, error) {
+	query := `SELECT id, title, year, runtime, genres, version
+    FROM movies
+    WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
+    AND (genres @> $2 OR $2 = '{}')
+    ORDER BY id`
+
+	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
+	defer cancel()
+	row, err := m.DB.QueryContext(ctx, query, title, pq.Array(genres))
+	if err != nil {
+		return nil, fmt.Errorf("query all movie: %s", err)
+	}
+	defer row.Close()
+
+	var movies []Movie
+	for row.Next() {
+		var mv Movie
+		err := row.Scan(&mv.ID, &mv.Title, &mv.Year, &mv.Runtime, pq.Array(&mv.Genres), &mv.Version)
+		if err != nil {
+			return nil, fmt.Errorf("scan a movie: %s", err)
+		}
+
+		movies = append(movies, mv)
+
+	}
+
+	err = row.Err()
+	if err != nil {
+		return nil, fmt.Errorf("iterate all movie: %s", err)
+	}
+
+	return movies, nil
+}
