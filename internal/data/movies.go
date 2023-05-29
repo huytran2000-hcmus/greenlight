@@ -154,8 +154,8 @@ func (m *MovieModel) Delete(id int64) error {
 	return nil
 }
 
-func (m *MovieModel) GetAll(title string, genres []string, filter Filters) ([]Movie, error) {
-	query := fmt.Sprintf(`SELECT id, title, year, runtime, genres, version
+func (m *MovieModel) GetAll(title string, genres []string, filter Filters) ([]Movie, Metadata, error) {
+	query := fmt.Sprintf(`SELECT COUNT(*) OVER(), id, title, year, runtime, genres, version
     FROM movies
     WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
     AND (genres @> $2 OR $2 = '{}')
@@ -173,16 +173,25 @@ func (m *MovieModel) GetAll(title string, genres []string, filter Filters) ([]Mo
 		filter.offset(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query all movie: %s", err)
+		return nil, Metadata{}, fmt.Errorf("query all movie: %s", err)
 	}
 	defer row.Close()
 
+	totalRecords := 0
 	movies := []Movie{}
 	for row.Next() {
 		var mv Movie
-		err = row.Scan(&mv.ID, &mv.Title, &mv.Year, &mv.Runtime, pq.Array(&mv.Genres), &mv.Version)
+		err = row.Scan(
+			&totalRecords,
+			&mv.ID,
+			&mv.Title,
+			&mv.Year,
+			&mv.Runtime,
+			pq.Array(&mv.Genres),
+			&mv.Version,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("scan a movie: %s", err)
+			return nil, Metadata{}, fmt.Errorf("scan a movie: %s", err)
 		}
 
 		movies = append(movies, mv)
@@ -191,8 +200,8 @@ func (m *MovieModel) GetAll(title string, genres []string, filter Filters) ([]Mo
 
 	err = row.Err()
 	if err != nil {
-		return nil, fmt.Errorf("iterate all movie: %s", err)
+		return nil, Metadata{}, fmt.Errorf("iterate all movie: %s", err)
 	}
 
-	return movies, nil
+	return movies, makeMetadata(totalRecords, filter.Page, filter.PageSize), nil
 }
