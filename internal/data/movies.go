@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"huytran2000-hcmus/greenlight/internal/validator"
 	"time"
 
 	"github.com/lib/pq"
+
+	"huytran2000-hcmus/greenlight/internal/validator"
 )
 
 var standardTimeout = 3 * time.Second
@@ -29,7 +30,11 @@ type MovieModel struct {
 
 func ValidateMovie(v *validator.Validator, m *Movie) {
 	v.CheckError(validator.NotBlank(m.Title), "title", "must be provided")
-	v.CheckError(validator.LengthLessOrEqual(m.Title, 500), "title", "must not be greater than 500 characters")
+	v.CheckError(
+		validator.LengthLessOrEqual(m.Title, 500),
+		"title",
+		"must not be greater than 500 characters",
+	)
 
 	v.CheckError(m.Year != 0, "year", "must be provided")
 	v.CheckError(m.Year >= 1888, "year", "must be equal or greater than 1888")
@@ -54,7 +59,8 @@ func (m *MovieModel) Insert(movie *Movie) error {
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
 	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
 	defer cancel()
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+	err := m.DB.QueryRowContext(ctx, query, args...).
+		Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 	if err != nil {
 		return fmt.Errorf("data: insert a movie: %s", err)
 	}
@@ -101,7 +107,14 @@ func (m *MovieModel) Update(movie *Movie) error {
     WHERE id = $5 and version = $6
     returning version
     `
-	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.ID, movie.Version}
+	args := []any{
+		movie.Title,
+		movie.Year,
+		movie.Runtime,
+		pq.Array(movie.Genres),
+		movie.ID,
+		movie.Version,
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
 	defer cancel()
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
@@ -141,12 +154,12 @@ func (m *MovieModel) Delete(id int64) error {
 	return nil
 }
 
-func (m *MovieModel) GetAll(title string, genres []string) ([]Movie, error) {
-	query := `SELECT id, title, year, runtime, genres, version
+func (m *MovieModel) GetAll(title string, genres []string, filter Filters) ([]Movie, error) {
+	query := fmt.Sprintf(`SELECT id, title, year, runtime, genres, version
     FROM movies
     WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
     AND (genres @> $2 OR $2 = '{}')
-    ORDER BY id`
+    ORDER BY %s %s, id ASC`, filter.sortColumn(), filter.sortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), standardTimeout)
 	defer cancel()
@@ -159,7 +172,7 @@ func (m *MovieModel) GetAll(title string, genres []string) ([]Movie, error) {
 	var movies []Movie
 	for row.Next() {
 		var mv Movie
-		err := row.Scan(&mv.ID, &mv.Title, &mv.Year, &mv.Runtime, pq.Array(&mv.Genres), &mv.Version)
+		err = row.Scan(&mv.ID, &mv.Title, &mv.Year, &mv.Runtime, pq.Array(&mv.Genres), &mv.Version)
 		if err != nil {
 			return nil, fmt.Errorf("scan a movie: %s", err)
 		}

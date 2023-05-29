@@ -3,9 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
 	"huytran2000-hcmus/greenlight/internal/data"
 	"huytran2000-hcmus/greenlight/internal/validator"
-	"net/http"
 )
 
 func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +79,7 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 
 func (app *application) listAllMoviesHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Filters
+		data.Filters
 		Title  string
 		Genres []string
 	}
@@ -91,15 +92,24 @@ func (app *application) listAllMoviesHandler(w http.ResponseWriter, r *http.Requ
 	input.Page = app.readInt(qs, "page", 1, v)
 	input.PageSize = app.readInt(qs, "page_size", 20, v)
 	input.Sort = app.readString(qs, "sort", "id")
-	input.SortWhiteList = []string{"id", "title", "year", "runtime", "-id", "-title", "-year", "-runtime"}
+	input.SortWhiteList = []string{
+		"id",
+		"title",
+		"year",
+		"runtime",
+		"-id",
+		"-title",
+		"-year",
+		"-runtime",
+	}
 
-	validateFilter(v, input.Filters)
+	data.ValidateFilter(v, input.Filters)
 	if !v.IsValid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	movies, err := app.models.Movie.GetAll(input.Title, input.Genres)
+	movies, err := app.models.Movie.GetAll(input.Title, input.Genres, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, fmt.Errorf("list all movies handler: %s", err))
 		return
