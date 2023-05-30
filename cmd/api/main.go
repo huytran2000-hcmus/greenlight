@@ -13,6 +13,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"huytran2000-hcmus/greenlight/internal/data"
+	"huytran2000-hcmus/greenlight/internal/jsonlog"
 )
 
 const version = "1.0.0"
@@ -29,7 +30,7 @@ type config struct {
 }
 
 type application struct {
-	logger *log.Logger
+	logger *jsonlog.Logger
 	cfg    config
 	models data.Models
 }
@@ -49,11 +50,11 @@ func main() {
 	)
 	flag.Parse()
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	logger := jsonlog.New(os.Stdout, jsonlog.InfoLevel)
 
 	db, err := openDB(cfg)
 	if err != nil {
-		logger.Fatal(err)
+		logger.FatalErr(err, nil)
 	}
 	defer db.Close()
 
@@ -71,11 +72,15 @@ func main() {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  1 * time.Minute,
+		ErrorLog:     log.New(logger, "", 0),
 	}
 
-	logger.Printf("Starting the server at %d", cfg.port)
+	logger.Info("starting server", map[string]string{
+		"addr": srv.Addr,
+		"env":  cfg.env,
+	})
 	err = srv.ListenAndServe()
-	logger.Fatal(err)
+	logger.FatalErr(err, nil)
 }
 
 func openDB(cfg config) (*sql.DB, error) {
