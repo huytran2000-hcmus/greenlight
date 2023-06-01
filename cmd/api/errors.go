@@ -50,3 +50,8 @@ func (app *application) methodNotFoundResponse(w http.ResponseWriter, r *http.Re
 	message := fmt.Sprintf("The method %s is not supported by this resource", r.Method)
 	app.errorResponse(w, r, http.StatusMethodNotAllowed, message)
 }
+
+func (app *application) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	message := "rate limit exceeded"
+	app.errorResponse(w, r, http.StatusTooManyRequests, message)
+}
