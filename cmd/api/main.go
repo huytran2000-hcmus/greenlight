@@ -12,6 +12,7 @@ import (
 
 	"huytran2000-hcmus/greenlight/internal/data"
 	"huytran2000-hcmus/greenlight/internal/jsonlog"
+	"huytran2000-hcmus/greenlight/internal/mailer"
 )
 
 const version = "1.0.0"
@@ -30,12 +31,20 @@ type config struct {
 		burst  int
 		enable bool
 	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
 type application struct {
 	logger *jsonlog.Logger
 	cfg    config
 	models data.Models
+	mailer *mailer.Mailer
 }
 
 func main() {
@@ -54,6 +63,11 @@ func main() {
 		"15m",
 		"PostgreSQL max connection idle time",
 	)
+	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", 2525, "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "e4df82736fdada", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "e1b6e7d0b660b5", "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.alexedwards.net>", "SMTP sender")
 	flag.Parse()
 
 	logger := jsonlog.New(os.Stdout, jsonlog.InfoLevel)
@@ -66,10 +80,21 @@ func main() {
 
 	models := data.NewModels(db)
 
+	mailer, err := mailer.New(cfg.smtp.host,
+		cfg.smtp.port,
+		cfg.smtp.username,
+		cfg.smtp.password,
+		cfg.smtp.sender,
+	)
+	if err != nil {
+		logger.FatalErr(err, nil)
+	}
+
 	app := &application{
 		logger: logger,
 		cfg:    cfg,
 		models: models,
+		mailer: mailer,
 	}
 
 	err = app.serve()
