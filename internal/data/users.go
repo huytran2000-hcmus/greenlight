@@ -27,24 +27,28 @@ func ValidateUser(v *validator.Validator, user *User) {
 	v.CheckError(user.Email != "", "email", "must be provided")
 	v.CheckError(validator.Matches(user.Email, validator.EmailRX), "email", "must be a valid email address")
 
-	v.CheckError(*user.Password.plaintext != "", "password", "must be provided")
-	v.CheckError(!validator.LengthLessOrEqual(*user.Password.plaintext, 7), "password", "must not be less than 8 characters")
-	v.CheckError(validator.LengthLessOrEqual(*user.Password.plaintext, 72), "password", "must not be more than 72 character")
+	v.CheckError(!validator.LengthLessOrEqual(*user.Password.PlainText, 7), "password", "must not be less than 8 characters")
+	v.CheckError(validator.LengthLessOrEqual(*user.Password.PlainText, 72), "password", "must not be more than 72 character")
+	v.CheckError(*user.Password.PlainText != "", "password", "must be provided")
 }
 
 type password struct {
-	plaintext *string
+	PlainText *string
 	hash      []byte
 }
 
-func (p *password) Set(plaintextPassword string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), 12)
+func (p *password) Hash() error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(*p.PlainText), 12)
 	if err != nil {
-		return fmt.Errorf("data: generate hash from password: %s", err)
+		switch {
+		case errors.Is(err, bcrypt.ErrPasswordTooLong):
+			return nil
+		default:
+			return fmt.Errorf("data: generate hash from password: %s", err)
+		}
 	}
 
 	p.hash = hash
-	p.plaintext = &plaintextPassword
 	return nil
 }
 

@@ -16,16 +16,20 @@ type UserModel struct {
 }
 
 func (m UserModel) Insert(user *User) error {
+	err := user.Password.Hash()
+	if err != nil {
+		return fmt.Errorf("data: hash a user password: %s", err)
+	}
 	query := `
     INSERT INTO users (name, email, password_hash, activated)
-    VALUE ($1, $2, $3, $4)
+    VALUES ($1, $2, $3, $4)
     RETURNING id, created_at, version`
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
-	err := m.DB.QueryRowContext(ctx, query, args).Scan(&user.ID, &user.CreatedAt, &user.Version)
+	err = m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
 		case isUniqueEmailConstrainstError(err):
@@ -70,6 +74,10 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 }
 
 func (m UserModel) Update(user *User) error {
+	err := user.Password.Hash()
+	if err != nil {
+		return fmt.Errorf("data: hash a user password: %s", err)
+	}
 	query := `
     UPDATE users
     SET email = $1, password_hash = $2, name = $3, activated = $4, version = version + 1
@@ -81,7 +89,7 @@ func (m UserModel) Update(user *User) error {
 	defer cancel()
 
 	args := []any{user.Email, user.Password.hash, user.Name, user.Activated, user.ID, user.Version}
-	err := m.DB.QueryRowContext(ctx, query, args).Scan(&user.Version)
+	err = m.DB.QueryRowContext(ctx, query, args).Scan(&user.Version)
 	if err != nil {
 		switch {
 		case isUniqueEmailConstrainstError(err):
