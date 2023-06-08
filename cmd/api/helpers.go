@@ -138,3 +138,16 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+func (app *application) background(fn func()) {
+	go func() {
+		defer func() {
+			err := recover()
+			if err != nil {
+				app.logger.Error(fmt.Errorf("recover: %s", err), nil)
+			}
+		}()
+
+		fn()
+	}()
+}

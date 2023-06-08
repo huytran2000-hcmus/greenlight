@@ -12,6 +12,8 @@ import (
 //go:embed "templates"
 var templateFS embed.FS
 
+const maxSendEmailRetry = 3
+
 type Mailer struct {
 	client *mail.Client
 	sender string
@@ -70,10 +72,12 @@ func (m *Mailer) Send(recipient, templateFile string, data any) error {
 	msg.SetBodyString(mail.TypeTextHTML, htmlBody.String())
 	msg.AddAlternativeString(mail.TypeTextPlain, plainBody.String())
 
-	err = m.client.DialAndSend(msg)
-	if err != nil {
-		return fmt.Errorf("send email: %s", err)
+	for i := 0; i < maxSendEmailRetry; i++ {
+		err = m.client.DialAndSend(msg)
+		if nil == err {
+			return nil
+		}
 	}
 
-	return nil
+	return fmt.Errorf("send email: %s", err)
 }
