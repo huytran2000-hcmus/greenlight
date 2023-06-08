@@ -34,6 +34,16 @@ func (app *application) serve() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		err := srv.Shutdown(ctx)
+		if err != nil {
+			shutDownErr <- err
+		}
+
+		app.logger.Info("completing background tasks", map[string]string{
+			"addr": srv.Addr,
+			"env":  app.cfg.env,
+		})
+
+		app.wg.Wait()
 		shutDownErr <- err
 	}()
 
@@ -43,6 +53,7 @@ func (app *application) serve() error {
 	})
 
 	err := srv.ListenAndServe()
+	app.wg.Wait()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
