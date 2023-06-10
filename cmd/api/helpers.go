@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -150,4 +151,28 @@ func (app *application) background(fn func()) {
 
 		fn()
 	}()
+}
+
+func fmtDuration(d time.Duration) string {
+	d = d.Round(time.Minute)
+	days := d / (24 * time.Hour)
+	d -= days * 24 * time.Hour
+	hours := d / time.Hour
+	d -= hours * time.Hour
+	minutes := d / time.Minute
+
+	var durationStr string
+	if days != 0 {
+		durationStr += fmt.Sprintf("%d days ", days)
+	}
+
+	if hours != 0 {
+		durationStr += fmt.Sprintf("%d hours ", hours)
+	}
+
+	if minutes != 0 {
+		durationStr += fmt.Sprintf("%d minutes ", minutes)
+	}
+
+	return durationStr
 }
