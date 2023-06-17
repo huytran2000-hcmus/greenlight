@@ -2,9 +2,11 @@ package data
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -16,10 +18,6 @@ type UserModel struct {
 }
 
 func (m UserModel) Insert(user *User) error {
-	err := user.Password.Hash()
-	if err != nil {
-		return fmt.Errorf("data: hash a user password: %s", err)
-	}
 	query := `
     INSERT INTO users (name, email, password_hash, activated)
     VALUES ($1, $2, $3, $4)
@@ -29,7 +27,7 @@ func (m UserModel) Insert(user *User) error {
 	defer cancel()
 
 	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
-	err = m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
 		case isUniqueEmailConstrainstError(err):
@@ -74,14 +72,10 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 }
 
 func (m UserModel) Update(user *User) error {
-	err := user.Password.Hash()
-	if err != nil {
-		return fmt.Errorf("data: hash a user password: %s", err)
-	}
 	query := `
     UPDATE users
     SET email = $1, password_hash = $2, name = $3, activated = $4, version = version + 1
-    WHEREE id = $5 AND version = $6
+    WHERE id = $5 AND version = $6
     RETURNING version
     `
 
@@ -89,7 +83,7 @@ func (m UserModel) Update(user *User) error {
 	defer cancel()
 
 	args := []any{user.Email, user.Password.hash, user.Name, user.Activated, user.ID, user.Version}
-	err = m.DB.QueryRowContext(ctx, query, args).Scan(&user.Version)
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
 		switch {
 		case isUniqueEmailConstrainstError(err):
@@ -102,6 +96,44 @@ func (m UserModel) Update(user *User) error {
 	}
 
 	return nil
+}
+
+func (m UserModel) GetForToken(scope, plaintext string) (*User, error) {
+	query := `
+    SELECT u.id, u.email, u.password_hash, u.name, u.created_at, u.activated, u.version
+    FROM users u JOIN tokens t
+    ON u.id = t.user_id
+    WHERE t.hash = $1
+    AND t.scope = $2
+    AND t.expiry > $3
+    `
+
+	hash := sha256.Sum256([]byte(plaintext))
+	args := []any{hash[:], scope, time.Now()}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	var user User
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Password.hash,
+		&user.Name,
+		&user.CreatedAt,
+		&user.Activated,
+		&user.Version,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, fmt.Errorf("data: select a user by token: %s", err)
+		}
+	}
+
+	return &user, nil
 }
 
 func isUniqueEmailConstrainstError(err error) bool {

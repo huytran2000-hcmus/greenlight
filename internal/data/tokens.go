@@ -23,7 +23,7 @@ type Token struct {
 
 func ValidateTokenPlainText(v *validator.Validator, text string) {
 	v.CheckError(text != "", "token", "must be provided")
-	v.CheckError(len(text) != 26, "token", "must be 26 bytes long")
+	v.CheckError(len(text) == 26, "token", "must be 26 bytes long")
 }
 
 func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error) {

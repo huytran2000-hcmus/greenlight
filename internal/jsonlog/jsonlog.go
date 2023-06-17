@@ -2,6 +2,7 @@ package jsonlog
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"runtime/debug"
@@ -52,6 +53,7 @@ func (l *Logger) Info(message string, properties map[string]string) {
 }
 
 func (l *Logger) Error(err error, properties map[string]string) {
+	fmt.Printf("%v", err)
 	l.print(ErrorLevel, err.Error(), properties)
 }
 

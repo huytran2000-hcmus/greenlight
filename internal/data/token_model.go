@@ -39,15 +39,15 @@ func (m TokenModel) Insert(token *Token) error {
 	return nil
 }
 
-func (m TokenModel) DeleteAllForUser(userID int64, scope string) error {
+func (m TokenModel) DeleteAllForUser(scope string, userID int64) error {
 	query := `
-    DELETE FROM users
+    DELETE FROM tokens
     WHERE scope = $1 AND user_id = $2`
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	_, err := m.DB.ExecContext(ctx, query)
+	_, err := m.DB.ExecContext(ctx, query, scope, userID)
 	if err != nil {
 		return fmt.Errorf("data: delete all token of scope %q for user with id=%d: %s", scope, userID, err)
 	}
