@@ -44,7 +44,7 @@ func (app *application) serve() error {
 		})
 
 		app.wg.Wait()
-		shutDownErr <- err
+		shutDownErr <- nil
 	}()
 
 	app.logger.Info("starting server", map[string]string{
