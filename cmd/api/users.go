@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -34,7 +35,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrPasswordTooLong):
-			v.AddFieldError("password", "must not be more than 72 character")
+			v.AddFieldError("password", fmt.Sprintf("must not be more than %d character", data.MaxPasswordLen))
 			app.failedValidationResponse(w, r, v.Errors)
 		default:
 			app.serverErrorResponse(w, r, err)

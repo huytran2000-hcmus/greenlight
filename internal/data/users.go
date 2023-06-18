@@ -12,6 +12,8 @@ import (
 
 var ErrPasswordTooLong = errors.New("pass word too long")
 
+const MaxPasswordLen = 72
+
 type User struct {
 	ID        int64     `json:"id"`
 	Email     string    `json:"email"`
@@ -31,7 +33,7 @@ func ValidateUser(v *validator.Validator, user *User) {
 
 	if user.Password.plaintext != nil {
 		v.CheckError(!validator.LengthLessOrEqual(*user.Password.plaintext, 7), "password", "must not be less than 8 characters")
-		v.CheckError(validator.LengthLessOrEqual(*user.Password.plaintext, 72), "password", "must not be more than 72 character")
+		v.CheckError(validator.LengthLessOrEqual(*user.Password.plaintext, MaxPasswordLen), "password", fmt.Sprintf("must not be more than %d characters", MaxPasswordLen))
 		v.CheckError(*user.Password.plaintext != "", "password", "must be provided")
 	}
 }
