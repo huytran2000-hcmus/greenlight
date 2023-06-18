@@ -14,6 +14,8 @@ var ErrPasswordTooLong = errors.New("pass word too long")
 
 const MaxPasswordLen = 72
 
+var AnonymousUser = &User{}
+
 type User struct {
 	ID        int64     `json:"id"`
 	Email     string    `json:"email"`
@@ -22,6 +24,10 @@ type User struct {
 	Name      string    `json:"name"`
 	Activated bool      `json:"activated"`
 	Version   int       `json:"-"`
+}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
 }
 
 func ValidateUser(v *validator.Validator, user *User) {

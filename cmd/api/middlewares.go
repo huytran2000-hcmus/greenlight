@@ -1,12 +1,17 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
+
+	"huytran2000-hcmus/greenlight/internal/data"
+	"huytran2000-hcmus/greenlight/internal/validator"
 )
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
@@ -59,6 +64,45 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 		}
 		mu.Unlock()
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Authorization")
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			user := data.AnonymousUser
+			app.contextSetUser(r, user)
+
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		headerParts := strings.Split(authHeader, " ")
+		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+			app.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		token := headerParts[1]
+
+		v := validator.New()
+		data.ValidateTokenPlainText(v, token)
+		user, err := app.models.User.GetForToken(data.ScopeAuthentication, token)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.invalidAuthenticationTokenResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		r = app.contextSetUser(r, user)
 		next.ServeHTTP(w, r)
 	})
 }
