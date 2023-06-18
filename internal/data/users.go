@@ -28,14 +28,22 @@ func ValidateUser(v *validator.Validator, user *User) {
 	v.CheckError(user.Name != "", "name", "must be provided")
 	v.CheckError(validator.LengthLessOrEqual(user.Name, 256), "name", "must not be more than 256 characters")
 
-	v.CheckError(user.Email != "", "email", "must be provided")
-	v.CheckError(validator.Matches(user.Email, validator.EmailRX), "email", "must be a valid email address")
+	ValidateEmail(v, user.Email)
 
 	if user.Password.plaintext != nil {
-		v.CheckError(!validator.LengthLessOrEqual(*user.Password.plaintext, 7), "password", "must not be less than 8 characters")
-		v.CheckError(validator.LengthLessOrEqual(*user.Password.plaintext, MaxPasswordLen), "password", fmt.Sprintf("must not be more than %d characters", MaxPasswordLen))
-		v.CheckError(*user.Password.plaintext != "", "password", "must be provided")
+		ValidatePasswordPlainText(v, *user.Password.plaintext)
 	}
+}
+
+func ValidateEmail(v *validator.Validator, email string) {
+	v.CheckError(email != "", "email", "must be provided")
+	v.CheckError(validator.Matches(email, validator.EmailRX), "email", "must be a valid email address")
+}
+
+func ValidatePasswordPlainText(v *validator.Validator, password string) {
+	v.CheckError(!validator.LengthLessOrEqual(password, 7), "password", "must not be less than 8 characters")
+	v.CheckError(validator.LengthLessOrEqual(password, MaxPasswordLen), "password", fmt.Sprintf("must not be more than %d characters", MaxPasswordLen))
+	v.CheckError(password != "", "password", "must be provided")
 }
 
 type password struct {
@@ -44,7 +52,7 @@ type password struct {
 }
 
 func (p *password) Set(plaintext string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(*p.plaintext), 12)
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), 12)
 	if err != nil {
 		switch {
 		case errors.Is(err, bcrypt.ErrPasswordTooLong):

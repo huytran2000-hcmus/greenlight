@@ -10,7 +10,10 @@ import (
 	"huytran2000-hcmus/greenlight/internal/validator"
 )
 
-const defaultActivationTimeout = 3 * 24 * time.Hour
+const (
+	defaultActivationTimeout     = 3 * 24 * time.Hour
+	defaultAuthenticationTimeout = 3 * time.Hour
+)
 
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
@@ -60,7 +63,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	token, err := app.models.Token.New(user.ID, defaultActivationTimeout, data.ScopeActivation)
+	token, err := app.models.Token.New(data.ScopeActivation, user.ID, defaultActivationTimeout)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -140,5 +143,62 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
+	}
+}
+
+func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+
+	data.ValidateEmail(v, input.Email)
+	data.ValidatePasswordPlainText(v, input.Password)
+
+	if !v.IsValid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user, err := app.models.User.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.invalidCredentialsResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+
+		return
+	}
+
+	matched, err := user.Password.Matches(input.Password)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !matched {
+		app.invalidCredentialsResponse(w, r)
+		return
+	}
+
+	token, err := app.models.Token.New(data.ScopeAuthentication, user.ID, defaultAuthenticationTimeout)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusCreated, nil, envelope{"authentication": token})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
 	}
 }
