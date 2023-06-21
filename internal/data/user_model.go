@@ -23,7 +23,7 @@ func (m UserModel) Insert(user *User) error {
     VALUES ($1, $2, $3, $4)
     RETURNING id, created_at, version`
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 
 	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
@@ -46,7 +46,7 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
     FROM users
     WHERE email = $1`
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 
 	var user User
@@ -79,7 +79,7 @@ func (m UserModel) Update(user *User) error {
     RETURNING version
     `
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 
 	args := []any{user.Email, user.Password.hash, user.Name, user.Activated, user.ID, user.Version}
@@ -111,7 +111,7 @@ func (m UserModel) GetForToken(scope, plaintext string) (*User, error) {
 	hash := sha256.Sum256([]byte(plaintext))
 	args := []any{hash[:], scope, time.Now()}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 
 	var user User

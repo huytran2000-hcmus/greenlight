@@ -6,7 +6,7 @@ import (
 	"huytran2000-hcmus/greenlight/internal/validator"
 )
 
-var defaultTimeout = 3 * time.Second
+var defaultQueryTimeout = 3 * time.Second
 
 type Movie struct {
 	ID        int64     `json:"id"`

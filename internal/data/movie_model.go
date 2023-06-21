@@ -21,7 +21,7 @@ func (m MovieModel) Insert(movie *Movie) error {
     `
 
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 	err := m.DB.QueryRowContext(ctx, query, args...).
 		Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
@@ -43,7 +43,7 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
     WHERE id = $1
     `
 	var movie Movie
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 	err := m.DB.QueryRowContext(ctx, query, id).Scan(
 		&movie.ID,
@@ -79,7 +79,7 @@ func (m MovieModel) Update(movie *Movie) error {
 		movie.ID,
 		movie.Version,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
 	if err != nil {
@@ -99,7 +99,7 @@ func (m MovieModel) Delete(id int64) error {
     WHERE id = $1
     `
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 	result, err := m.DB.ExecContext(ctx, stmt, id)
 	if err != nil {
@@ -126,7 +126,7 @@ func (m MovieModel) GetAll(title string, genres []string, filter Filters) ([]Mov
     ORDER BY %s %s, id ASC
     LIMIT $3 OFFSET $4`, filter.sortColumn(), filter.sortDirection())
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultQueryTimeout)
 	defer cancel()
 	row, err := m.DB.QueryContext(
 		ctx,

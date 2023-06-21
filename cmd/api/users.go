@@ -63,6 +63,11 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	err = app.models.Permission.AddForUser(user.ID, "movies:read")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
 	token, err := app.models.Token.New(data.ScopeActivation, user.ID, defaultActivationTimeout)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
