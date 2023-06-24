@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -58,22 +60,25 @@ func main() {
 	flag.IntVar(&cfg.port, "port", 5000, "API server's port")
 	flag.StringVar(&cfg.env, "env", "development", "Enviroment (development|staging|production)")
 	flag.StringVar(&cfg.dsn, "dsn", os.Getenv("GREENLIGHT_DB_DSN"), "PostgreSQL data source name")
+
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
-	flag.Float64Var(&cfg.limiter.rate, "limiter-rate", 2, "Rate limiter average request per seconds")
-	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum request burst")
-	flag.BoolVar(&cfg.limiter.enable, "limiter-enable", true, "Rate limiter enable")
 	flag.StringVar(
 		&cfg.db.maxIdleTime,
 		"db-max-idle-time",
 		"15m",
 		"PostgreSQL max connection idle time",
 	)
+	flag.Float64Var(&cfg.limiter.rate, "limiter-rate", 2, "Rate limiter average request per seconds")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum request burst")
+	flag.BoolVar(&cfg.limiter.enable, "limiter-enable", true, "Rate limiter enable")
+
 	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 2525, "SMTP port")
 	flag.StringVar(&cfg.smtp.username, "smtp-username", "e4df82736fdada", "SMTP username")
 	flag.StringVar(&cfg.smtp.password, "smtp-password", "e1b6e7d0b660b5", "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.alexedwards.net>", "SMTP sender")
+
 	flag.Func("cors-trusted-origins", "Trusted CORS origins", func(val string) error {
 		cfg.cors.trustedOrigins = strings.Fields(val)
 		return nil
@@ -99,6 +104,17 @@ func main() {
 	if err != nil {
 		logger.FatalErr(err, nil)
 	}
+
+	expvar.NewString("version").Set(version)
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
+	expvar.Publish("database", expvar.Func(func() any {
+		return db.Stats()
+	}))
+	expvar.Publish("time", expvar.Func(func() any {
+		return time.Now().Round(time.Second).Unix()
+	}))
 
 	app := &application{
 		logger: logger,

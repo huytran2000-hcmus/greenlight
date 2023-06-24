@@ -2,12 +2,15 @@ package main
 
 import (
 	"errors"
+	"expvar"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/felixge/httpsnoop"
 	"golang.org/x/time/rate"
 
 	"huytran2000-hcmus/greenlight/internal/data"
@@ -152,6 +155,26 @@ func (app *application) requirePermission(permission string, next http.HandlerFu
 	}
 
 	return app.requireActivatedUser(fn)
+}
+
+func (app *application) metrics(next http.Handler) http.Handler {
+	totalRequestReceived := expvar.NewInt("total_requests_received")
+	totalResponsesSent := expvar.NewInt("total_responses_sent")
+	totalProcessingTimeMicroseconds := expvar.NewInt("total_responses_sent_μs")
+	totalResponsesSentByStatus := expvar.NewMap("total_responses_sent_by_status")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		totalRequestReceived.Add(1)
+
+		metrics := httpsnoop.CaptureMetrics(next, w, r)
+
+		totalResponsesSent.Add(1)
+
+		status := strconv.Itoa(metrics.Code)
+		totalResponsesSentByStatus.Add(status, 1)
+
+		totalProcessingTimeMicroseconds.Add(metrics.Duration.Microseconds())
+	})
 }
 
 func (app *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
