@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"html/template"
 
-	"github.com/wneessen/go-mail"
+	mail "github.com/wneessen/go-mail"
 )
 
 //go:embed "templates"

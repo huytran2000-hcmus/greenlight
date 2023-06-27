@@ -13,4 +13,4 @@ require (
 
 require github.com/wneessen/go-mail v0.3.9
 
-require github.com/felixge/httpsnoop v1.0.3 // indirect
+require github.com/felixge/httpsnoop v1.0.3

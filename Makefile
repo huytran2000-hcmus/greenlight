@@ -1,4 +1,7 @@
 include .envrc
+# ==================================================================================== #
+# HELPERS
+# ==================================================================================== #
 ## help: print this help message
 .PHONY: help
 help:
@@ -11,6 +14,9 @@ run/api:
 	echo $$GREENLIGHT_DB_DSN
 	go run ./cmd/api -dsn $$GREENLIGHT_DB_DSN
 
+# ==================================================================================== #
+# DEVELOPMENT
+# ==================================================================================== #
 ## db/psql: enter a psql repl connect to database
 .PHONY: db/psql
 db/psql:
@@ -30,3 +36,19 @@ db/migrations/new:
 
 confirm:
 	@echo -n 'Are you sure? [y/N]' && read ans && [ $${ans:-N} = y]
+# ==================================================================================== #
+# QUALITY CONTROL
+# ==================================================================================== #
+.PHONY: audit
+audit:
+	@echo 'Tidying and verifying module dependencies...'
+	go mod tidy
+	go mod verify
+	@echo 'Formating code'
+	gofumpt -l -w .
+	goimports-reviser -set-alias ./...
+	@echo 'Vetting code...'
+	go vet ./...
+	staticcheck ./...
+	@echo 'Runnings tests'
+	go test -race -vet=off ./...
