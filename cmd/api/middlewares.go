@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"expvar"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/felixge/httpsnoop"
+	"github.com/tomasen/realip"
 	"golang.org/x/time/rate"
 
 	"huytran2000-hcmus/greenlight/internal/data"
@@ -45,11 +45,7 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 			return
 		}
 
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
+		ip := realip.FromRequest(r)
 
 		mu.Lock()
 		if _, ok := clients[ip]; !ok {

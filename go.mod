@@ -14,3 +14,5 @@ require (
 require github.com/wneessen/go-mail v0.3.9
 
 require github.com/felixge/httpsnoop v1.0.3
+
+require github.com/tomasen/realip v0.0.0-20180522021738-f0c99a92ddce
