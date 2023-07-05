@@ -17,6 +17,7 @@ import (
 	"huytran2000-hcmus/greenlight/internal/data"
 	"huytran2000-hcmus/greenlight/internal/jsonlog"
 	"huytran2000-hcmus/greenlight/internal/mailer"
+	"huytran2000-hcmus/greenlight/internal/vcs"
 )
 
 const version = "1.0.0"
@@ -57,6 +58,7 @@ type application struct {
 
 func main() {
 	var cfg config
+	displayVersion := flag.Bool("version", false, "Display version and exit")
 	flag.IntVar(&cfg.port, "port", 5000, "API server's port")
 	flag.StringVar(&cfg.env, "env", "development", "Enviroment (development|staging|production)")
 	flag.StringVar(&cfg.dsn, "dsn", "", "PostgreSQL data source name")
@@ -84,6 +86,12 @@ func main() {
 		return nil
 	})
 	flag.Parse()
+
+	if *displayVersion {
+		fmt.Printf("Version:\t%s\n", vcs.Version())
+		os.Exit(0)
+		return
+	}
 
 	logger := jsonlog.New(os.Stdout, jsonlog.InfoLevel)
 
