@@ -74,13 +74,12 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	expiredIn := time.Until(token.Expiry).Round(time.Hour)
-
 	app.background(func() {
+		expireIn := time.Until(token.Expiry).Round(time.Hour)
 		data := map[string]interface{}{
 			"userID":          user.ID,
 			"activationToken": token.Plaintext,
-			"expiredIn":       fmtDuration(expiredIn),
+			"expireIn":        fmtDuration(expireIn),
 		}
 
 		err = app.mailer.Send(user.Email, "user_welcome.tmpl", data)
@@ -203,6 +202,147 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 	}
 
 	err = app.writeJSON(w, http.StatusCreated, nil, envelope{"authentication": token})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+	data.ValidateEmail(v, input.Email)
+	if !v.IsValid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user, err := app.models.User.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			v.AddFieldError("email", "no matching email found")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if !user.Activated {
+		v.AddFieldError("email", "user account must be actvivated")
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	token, err := app.models.Token.New(data.ScopePasswordReset, user.ID, 60*time.Minute)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.background(func() {
+		expireIn := time.Until(token.Expiry).Round(time.Hour)
+		data := map[string]interface{}{
+			"passwordResetToken": token.Plaintext,
+			"expireIn":           fmtDuration(expireIn),
+		}
+
+		err := app.mailer.Send(user.Email, "password_reset.tmpl", data)
+		if err != nil {
+			app.logError(r, err)
+		}
+	})
+
+	envlp := envelope{"message": "An email has been sent to you containing the password reset instruction"}
+	err = app.writeJSON(w, http.StatusOK, nil, envlp)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Password string `json:"password"`
+		Token    string `json:"token"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+	data.ValidateTokenPlainText(v, input.Token)
+	data.ValidatePasswordPlainText(v, input.Password)
+	if !v.IsValid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user, err := app.models.User.GetForToken(data.ScopePasswordReset, input.Token)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			v.AddFieldError("token", "invalid or expired password reset token")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+
+		return
+	}
+
+	if !user.Activated {
+		v.AddFieldError("email", "user account must be actvivated")
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = user.Password.Set(input.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrPasswordTooLong):
+			v.AddFieldError("password", fmt.Sprintf("must not be more than %d character", data.MaxPasswordLen))
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+
+		return
+	}
+
+	err = app.models.User.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.logError(r, fmt.Errorf("user not found but the token is valid: %w", err))
+			app.editConflictResponse(w, r)
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+
+		return
+	}
+
+	err = app.models.Token.DeleteAllForUser(data.ScopePasswordReset, user.ID)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, nil, envelope{"message": "password has been successfully reset"})
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
