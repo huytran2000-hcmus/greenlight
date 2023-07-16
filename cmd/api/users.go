@@ -13,6 +13,7 @@ import (
 const (
 	defaultActivationTimeout     = 3 * 24 * time.Hour
 	defaultAuthenticationTimeout = 3 * time.Hour
+	defaultPasswordResetTimeout  = 60 * time.Minute
 )
 
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,21 +75,13 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	app.background(func() {
-		expireIn := time.Until(token.Expiry).Round(time.Hour)
-		data := map[string]interface{}{
-			"userID":          user.ID,
-			"activationToken": token.Plaintext,
-			"expireIn":        fmtDuration(expireIn),
-		}
+	app.sendActivationTokenToUserEmail(r, user.Email, token)
 
-		err = app.mailer.Send(user.Email, "user_welcome.tmpl", data)
-		if err != nil {
-			app.logger.Error(err, nil)
-		}
-	})
-
-	err = app.writeJSON(w, http.StatusAccepted, nil, envelope{"user": user})
+	envlp := envelope{
+		"user":    user,
+		"message": "an email will be sent to you containing the activation instructions",
+	}
+	err = app.writeJSON(w, http.StatusAccepted, nil, envlp)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -243,7 +236,7 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	token, err := app.models.Token.New(data.ScopePasswordReset, user.ID, 60*time.Minute)
+	token, err := app.models.Token.New(data.ScopePasswordReset, user.ID, defaultPasswordResetTimeout)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -262,7 +255,7 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		}
 	})
 
-	envlp := envelope{"message": "An email has been sent to you containing the password reset instruction"}
+	envlp := envelope{"message": "An email has been sent to you containing the password reset instructions"}
 	err = app.writeJSON(w, http.StatusOK, nil, envlp)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -324,9 +317,6 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 	err = app.models.User.Update(user)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			app.logError(r, fmt.Errorf("user not found but the token is valid: %w", err))
-			app.editConflictResponse(w, r)
 		case errors.Is(err, data.ErrEditConflict):
 			app.editConflictResponse(w, r)
 		default:
@@ -346,4 +336,70 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+	data.ValidateEmail(v, input.Email)
+	if !v.IsValid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user, err := app.models.User.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if user.Activated {
+		v.AddFieldError("email", "account has already been activated")
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	token, err := app.models.Token.New(data.ScopeActivation, user.ID, defaultActivationTimeout)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.sendActivationTokenToUserEmail(r, user.Email, token)
+
+	envlp := envelope{"message": "an email will be sent to you containing activation instructions"}
+	err = app.writeJSON(w, http.StatusOK, nil, envlp)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) sendActivationTokenToUserEmail(r *http.Request, email string, token *data.Token) {
+	app.background(func() {
+		expireIn := time.Until(token.Expiry).Round(time.Hour)
+		data := map[string]interface{}{
+			"userID":          token.UserID,
+			"activationToken": token.Plaintext,
+			"expireIn":        fmtDuration(expireIn),
+		}
+
+		err := app.mailer.Send(email, "user_welcome.tmpl", data)
+		if err != nil {
+			app.logError(r, err)
+		}
+	})
 }
