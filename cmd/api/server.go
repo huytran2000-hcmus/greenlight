@@ -53,7 +53,6 @@ func (app *application) serve() error {
 	})
 
 	err := srv.ListenAndServe()
-	app.wg.Wait()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
